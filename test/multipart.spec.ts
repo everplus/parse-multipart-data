@@ -17,14 +17,21 @@ const expected = [
     type: 'text/plain',
     data: Buffer.from('@22X222Y\r\n222Z\r222W\n2220\r\n666@')
   },
-  { name: 'input1', data: Buffer.from('value1') }
+  { name: 'input1', data: Buffer.from('value1') },
+  {
+    name: 'uploads[]',
+    filename: 'unicode-äëñĄĆ_abcŤ.txt',
+    type: 'text/plain',
+    data: Buffer.from(
+      'Title: unicode-äëñĄĆ_abcŤ\r\nLorem ipsum dolorat sit amet...'
+    )
+  }
 ]
-describe('Multipart', function() {
-  it('should parse multipart', function() {
+describe('Multipart', function () {
+  it('should parse multipart', function () {
     const { body, boundary } = DemoData()
     const parts = parse(body, boundary)
-
-    expect(parts.length).to.be.equal(3)
+    expect(parts.length).to.be.equal(4)
     for (let i = 0; i < expected.length; i++) {
       const data = expected[i]
       const part = parts[i]
@@ -36,7 +43,7 @@ describe('Multipart', function() {
     }
   })
 
-  it('should get boundary', function() {
+  it('should get boundary', function () {
     const header =
       'multipart/form-data; boundary=----WebKitFormBoundaryvm5A9tzU1ONaGP5B'
     const boundary = getBoundary(header)
@@ -44,30 +51,30 @@ describe('Multipart', function() {
     expect(boundary).to.be.equal('----WebKitFormBoundaryvm5A9tzU1ONaGP5B')
   })
 
-  it('should get boundary in single quotes', function() {
+  it('should get boundary in single quotes', function () {
     const header =
       'multipart/form-data; boundary="----WebKitFormBoundaryvm5A9tzU1ONaGP5B"'
     const boundary = getBoundary(header)
 
     expect(boundary).to.be.equal('----WebKitFormBoundaryvm5A9tzU1ONaGP5B')
   })
-  
-  it('should get boundary in double quotes', function() {
+
+  it('should get boundary in double quotes', function () {
     const header =
       "multipart/form-data; boundary='----WebKitFormBoundaryvm5A9tzU1ONaGP5B'"
     const boundary = getBoundary(header)
 
     expect(boundary).to.be.equal('----WebKitFormBoundaryvm5A9tzU1ONaGP5B')
   })
-  
-  it('should not parse multipart if boundary is not correct', function() {
+
+  it('should not parse multipart if boundary is not correct', function () {
     const { body, boundary } = DemoData()
     const parts = parse(body, boundary + 'bad')
 
     expect(parts.length).to.be.equal(0)
   })
 
-  it('should not parse if multipart is not correct', function() {
+  it('should not parse if multipart is not correct', function () {
     const { boundary } = DemoData()
     const parts = parse(Buffer.from('hellow world'), boundary)
 
