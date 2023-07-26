@@ -31,8 +31,12 @@ enum ParsingState {
   READING_PART_SEPARATOR
 }
 
+export function BufferToString(array: number[]): string {
+  return new TextDecoder().decode(new Uint8Array(array))
+}
+
 export function parse(multipartBodyBuffer: Buffer, boundary: string): Input[] {
-  let lastline = ''
+  let lastLineBuffer: number[] = []
   let contentDispositionHeader = ''
   let contentTypeHeader = ''
   let state: ParsingState = ParsingState.INIT
@@ -49,17 +53,19 @@ export function parse(multipartBodyBuffer: Buffer, boundary: string): Input[] {
     const newLineDetected: boolean = oneByte === 0x0a && prevByte === 0x0d
     const newLineChar: boolean = oneByte === 0x0a || oneByte === 0x0d
 
-    if (!newLineChar) lastline += String.fromCharCode(oneByte)
+    if (!newLineChar) {
+      lastLineBuffer.push(oneByte)
+    }
     if (ParsingState.INIT === state && newLineDetected) {
       // searching for boundary
-      if ('--' + boundary === lastline) {
+      if ('--' + boundary === BufferToString(lastLineBuffer)) {
         state = ParsingState.READING_HEADERS // found boundary. start reading headers
       }
-      lastline = ''
+      lastLineBuffer = []
     } else if (ParsingState.READING_HEADERS === state && newLineDetected) {
       // parsing headers. Headers are separated by an empty line from the content. Stop reading headers when the line is empty
-      if (lastline.length) {
-        currentPartHeaders.push(lastline)
+      if (lastLineBuffer.length) {
+        currentPartHeaders.push(BufferToString(lastLineBuffer))
       } else {
         // found empty line. search for the headers we want and set the values
         for (const h of currentPartHeaders) {
@@ -72,14 +78,14 @@ export function parse(multipartBodyBuffer: Buffer, boundary: string): Input[] {
         state = ParsingState.READING_DATA
         buffer = []
       }
-      lastline = ''
+      lastLineBuffer = []
     } else if (ParsingState.READING_DATA === state) {
       // parsing data
-      if (lastline.length > boundary.length + 4) {
-        lastline = '' // mem save
+      if (lastLineBuffer.length > boundary.length + 4) {
+        lastLineBuffer = [] // mem save
       }
-      if ('--' + boundary === lastline) {
-        const j = buffer.length - lastline.length
+      if ('--' + boundary === BufferToString(lastLineBuffer)) {
+        const j = buffer.length - lastLineBuffer.length
         const part = buffer.slice(0, j - 1)
 
         allParts.push(
@@ -87,7 +93,7 @@ export function parse(multipartBodyBuffer: Buffer, boundary: string): Input[] {
         )
         buffer = []
         currentPartHeaders = []
-        lastline = ''
+        lastLineBuffer = []
         state = ParsingState.READING_PART_SEPARATOR
         contentDispositionHeader = ''
         contentTypeHeader = ''
@@ -95,7 +101,7 @@ export function parse(multipartBodyBuffer: Buffer, boundary: string): Input[] {
         buffer.push(oneByte)
       }
       if (newLineDetected) {
-        lastline = ''
+        lastLineBuffer = []
       }
     } else if (ParsingState.READING_PART_SEPARATOR === state) {
       if (newLineDetected) {
@@ -124,8 +130,10 @@ export function getBoundary(header: string): string {
 }
 
 export function DemoData(): { body: Buffer; boundary: string } {
+  const boundary = '----WebKitFormBoundaryvef1fLxmoUdYZWXp'
   let body = 'trash1\r\n'
-  body += '------WebKitFormBoundaryvef1fLxmoUdYZWXp\r\n'
+  // File A.txt
+  body += `--${boundary}\r\n`
   body += 'Content-Type: text/plain\r\n'
   body +=
     'Content-Disposition: form-data; name="uploads[]"; filename="A.txt"\r\n'
@@ -133,7 +141,8 @@ export function DemoData(): { body: Buffer; boundary: string } {
   body += '@11X'
   body += '111Y\r\n'
   body += '111Z\rCCCC\nCCCC\r\nCCCCC@\r\n\r\n'
-  body += '------WebKitFormBoundaryvef1fLxmoUdYZWXp\r\n'
+  // File B.txt
+  body += `--${boundary}\r\n`
   body += 'Content-Type: text/plain\r\n'
   body +=
     'Content-Disposition: form-data; name="uploads[]"; filename="B.txt"\r\n'
@@ -141,14 +150,24 @@ export function DemoData(): { body: Buffer; boundary: string } {
   body += '@22X'
   body += '222Y\r\n'
   body += '222Z\r222W\n2220\r\n666@\r\n'
-  body += '------WebKitFormBoundaryvef1fLxmoUdYZWXp\r\n'
+  // Field input1
+  body += `--${boundary}\r\n`
   body += 'Content-Disposition: form-data; name="input1"\r\n'
   body += '\r\n'
   body += 'value1\r\n'
+  // File unicode-äëñĄĆ_abcŤ.txt
+  body += `--${boundary}\r\n`
+  body += 'Content-Type: text/plain\r\n'
+  body +=
+    'Content-Disposition: form-data; name="uploads[]"; filename="unicode-äëñĄĆ_abcŤ.txt"\r\n'
+  body += '\r\n'
+  body += 'Title: unicode-äëñĄĆ_abcŤ\r\n'
+  body += 'Lorem ipsum dolorat sit amet...\r\n'
+  // End
   body += '------WebKitFormBoundaryvef1fLxmoUdYZWXp--\r\n'
   return {
     body: Buffer.from(body),
-    boundary: '----WebKitFormBoundaryvef1fLxmoUdYZWXp'
+    boundary: boundary
   }
 }
 
